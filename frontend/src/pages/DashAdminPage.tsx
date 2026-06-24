@@ -1,32 +1,28 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  IonBadge,
-  IonButton,
   IonCard,
   IonCardContent,
   IonCol,
   IonContent,
   IonGrid,
-  IonLabel,
   IonPage,
   IonRow,
-  IonSegment,
-  IonSegmentButton,
   IonRouterLink
 } from '@ionic/react';
+import api from "../api";
 
 type TabId = "graficos" | "opiniones" | "proyectos";
 
-type TipoProyecto =
-  | "Infraestructura"
-  | "Educación"
-  | "Salud"
-  | "Medioambiente"
-  | "Cultura"
-  | "Transporte"
-  | "Seguridad"
-  | "Otro";
+// Coincide exactamente con el ENUM tipo_proyecto de la base de datos.
+type TipoProyecto = "residencial" | "comercial" | "infraestructura" | "público";
+
+const TIPO_LABELS: Record<TipoProyecto, string> = {
+  residencial: "Residencial",
+  comercial: "Comercial",
+  infraestructura: "Infraestructura",
+  "público": "Público",
+};
 
 type EstadoProyecto = "Planificado" | "En Progreso" | "Completado";
 
@@ -43,6 +39,56 @@ interface Project {
   presupuesto: number;
   ubicacionTexto: string;
   responsable_id: number | null;
+}
+
+// Forma cruda tal como la entrega/espera la API REST (snake_case, lat/lng como string).
+interface ApiProyecto {
+  id: number;
+  nombre: string;
+  tipo: TipoProyecto;
+  descripcion: string;
+  estado: EstadoProyecto;
+  lat: string | number;
+  lng: string | number;
+  fecha_inicio: string | null;
+  fecha_fin: string | null;
+  presupuesto: number | null;
+  ubicacion_texto: string | null;
+  responsable_id: number | null;
+}
+
+// API -> estado interno del componente.
+function mapFromApi(row: ApiProyecto): Project {
+  return {
+    id: row.id,
+    nombre: row.nombre,
+    tipo: row.tipo,
+    descripcion: row.descripcion,
+    estado: row.estado,
+    lat: Number(row.lat),
+    lng: Number(row.lng),
+    fechaInicio: row.fecha_inicio ? String(row.fecha_inicio).slice(0, 10) : "",
+    fechaFin: row.fecha_fin ? String(row.fecha_fin).slice(0, 10) : "",
+    presupuesto: row.presupuesto ?? 0,
+    ubicacionTexto: row.ubicacion_texto ?? "",
+    responsable_id: row.responsable_id ?? null,
+  };
+}
+
+// Estado interno -> cuerpo que espera la API.
+function mapToApi(data: Omit<Project, "id">) {
+  return {
+    nombre: data.nombre,
+    tipo: data.tipo,
+    descripcion: data.descripcion,
+    estado: data.estado,
+    lat: data.lat,
+    lng: data.lng,
+    fecha_inicio: data.fechaInicio || null,
+    fecha_fin: data.fechaFin || null,
+    presupuesto: data.presupuesto || 0,
+    ubicacion_texto: data.ubicacionTexto || null,
+  };
 }
 
 type TipoEmocion = "Alegría" | "Preocupación" | "Enojo";
@@ -65,51 +111,6 @@ const STATUS_STYLES: Record<EstadoProyecto, { bg: string; text: string; label: s
   Completado: { bg: "bg-green-100", text: "text-green-800", label: "Completado" },
   Planificado: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Planificado" },
 };
-
-const PROJECTS: Project[] = [
-  {
-    id: 1,
-    nombre: "Repavimentación Av. Los Carrera",
-    tipo: "Infraestructura",
-    descripcion: "Repavimentación completa de la avenida principal con ciclovía integrada.",
-    estado: "En Progreso",
-    lat: -33.0472,
-    lng: -71.4427,
-    fechaInicio: "2026-04-01",
-    fechaFin: "2026-08-30",
-    presupuesto: 45000000,
-    ubicacionTexto: "Av. Los Carrera, Quilpué",
-    responsable_id: 3,
-  },
-  {
-    id: 2,
-    nombre: "Plaza Vecinal Villa Independencia",
-    tipo: "Cultura",
-    descripcion: "Construcción de nueva plaza con juegos infantiles y áreas verdes.",
-    estado: "Completado",
-    lat: -33.0521,
-    lng: -71.4318,
-    fechaInicio: "2026-01-15",
-    fechaFin: "2026-04-20",
-    presupuesto: 18000000,
-    ubicacionTexto: "Villa Independencia, Quilpué",
-    responsable_id: 5,
-  },
-  {
-    id: 3,
-    nombre: "Consultorio Módulo Norte",
-    tipo: "Salud",
-    descripcion: "Ampliación del consultorio con nuevas salas de atención primaria.",
-    estado: "Planificado",
-    lat: -33.0389,
-    lng: -71.4501,
-    fechaInicio: "2026-07-01",
-    fechaFin: "2026-12-31",
-    presupuesto: 72000000,
-    ubicacionTexto: "Sector Norte, Quilpué",
-    responsable_id: 2,
-  },
-];
 
 const OPINIONES_INICIALES: Opinion[] = [
   {
@@ -225,36 +226,6 @@ function describePieSlice(
     `A ${radius} ${radius} 0 ${largeArcFlag} 1 ${endX} ${endY}`,
     "Z",
   ].join(" ");
-}
-
-// Tarjeta de información ajustada al mockup (Arriba a la derecha)
-function ChartInfoCard({ info }: { info: HoverInfo | null }) {
-  if (!info) {
-    return (
-      <div className="h-[80px] w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-center text-sm text-gray-500">
-        
-      </div>
-    );
-  }
-
-  return (
-    <div className="h-[80px] w-full max-w-[220px] rounded-xl border border-gray-200 bg-white px-4 py-2 flex flex-col justify-center shadow-sm">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="h-3 w-3 rounded-full" style={{ backgroundColor: info.color }} />
-        <span className="text-[15px] font-semibold text-gray-900">{info.label}</span>
-      </div>
-      <div className="flex items-center justify-between text-[13px] text-gray-600">
-        <div className="flex flex-col">
-          <span className="text-xs">Cantidad:</span>
-          <strong className="text-gray-900">{info.count}</strong>
-        </div>
-        <div className="flex flex-col">
-          <span className="text-xs">Porcentaje:</span>
-          <strong className="text-gray-900">{info.percentage}%</strong>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 // 1. Gráfico de Barras Corregido
@@ -522,7 +493,7 @@ type ModalMode = "create" | "edit";
 
 const EMPTY_FORM: Omit<Project, "id"> = {
   nombre: "",
-  tipo: "Infraestructura",
+  tipo: "infraestructura",
   descripcion: "",
   estado: "Planificado",
   lat: 0,
@@ -543,9 +514,11 @@ function ProjectModal({
   mode: ModalMode;
   initial: Omit<Project, "id">;
   onClose: () => void;
-  onSave: (data: Omit<Project, "id">) => void;
+  onSave: (data: Omit<Project, "id">) => Promise<void>;
 }) {
   const [form, setForm] = useState<Omit<Project, "id">>(initial);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
 
   // Close on backdrop click
@@ -560,9 +533,18 @@ function ProjectModal({
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(form);
+    setFormError(null);
+    setSubmitting(true);
+    try {
+      await onSave(form);
+    } catch (err: any) {
+      const apiErrors = err?.response?.data?.errors;
+      setFormError(apiErrors?.[0]?.msg ?? err?.response?.data?.message ?? "No se pudo guardar el proyecto.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputClass =
@@ -622,8 +604,8 @@ function ProjectModal({
                 onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoProyecto })}
                 className={inputClass}
               >
-                {(["Infraestructura","Educación","Salud","Medioambiente","Cultura","Transporte","Seguridad","Otro"] as TipoProyecto[]).map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                {(["residencial","comercial","infraestructura","público"] as TipoProyecto[]).map((t) => (
+                  <option key={t} value={t}>{TIPO_LABELS[t]}</option>
                 ))}
               </select>
             </div>
@@ -747,35 +729,30 @@ function ProjectModal({
             />
           </div>
 
-          {/* Responsable ID */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
-              ID Responsable
-            </label>
-            <input
-              type="number"
-              min="1"
-              placeholder="ID del usuario responsable"
-              value={form.responsable_id ?? ""}
-              onChange={(e) => setForm({ ...form, responsable_id: e.target.value ? parseInt(e.target.value) : null })}
-              className={inputClass}
-            />
-          </div>
+
+          {/* Error del servidor */}
+          {formError && (
+            <div className="rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[13px] text-red-700">
+              {formError}
+            </div>
+          )}
 
           {/* Actions */}
           <div className="flex justify-end gap-3 pt-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-lg text-sm font-medium text-[#64748B] bg-gray-100 hover:bg-gray-200 transition-colors"
+              disabled={submitting}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-[#64748B] bg-gray-100 hover:bg-gray-200 transition-colors disabled:opacity-60"
             >
               Cancelar
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[#0A58CA] hover:bg-[#084298] transition-colors"
+              disabled={submitting}
+              className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[#0A58CA] hover:bg-[#084298] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              {mode === "create" ? "Crear Proyecto" : "Guardar Cambios"}
+              {submitting ? "Guardando..." : mode === "create" ? "Crear Proyecto" : "Guardar Cambios"}
             </button>
           </div>
         </form>
@@ -789,7 +766,9 @@ function ProjectModal({
 
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<TabId>("graficos");
-  const [projects, setProjects] = useState<Project[]>(PROJECTS);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(true);
+  const [projectsError, setProjectsError] = useState<string | null>(null);
   const [opiniones, setOpiniones] = useState<Opinion[]>(OPINIONES_INICIALES);
   const [barHoverInfo, setBarHoverInfo] = useState<HoverInfo | null>(null);
   const [pieHoverInfo, setPieHoverInfo] = useState<HoverInfo | null>(null);
@@ -800,6 +779,24 @@ export default function AdminPanel() {
   const [modalMode, setModalMode] = useState<ModalMode>("create");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [modalInitial, setModalInitial] = useState<Omit<Project, "id">>(EMPTY_FORM);
+
+  // Trae los proyectos reales desde la API REST (GET /api/proyectos).
+  const loadProjects = async () => {
+    setProjectsLoading(true);
+    setProjectsError(null);
+    try {
+      const { data } = await api.get('/proyectos');
+      setProjects((data.data as ApiProyecto[]).map(mapFromApi));
+    } catch (err: any) {
+      setProjectsError(err?.response?.data?.message ?? "No se pudieron cargar los proyectos.");
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProjects();
+  }, []);
 
   const openCreate = () => {
     setModalMode("create");
@@ -827,14 +824,17 @@ export default function AdminPanel() {
     setModalOpen(true);
   };
 
-  const handleModalSave = (data: Omit<Project, "id">) => {
+  // Crea o actualiza contra la API. Si falla, el error se propaga al modal
+  // (que lo muestra) y NO se cierra la ventana.
+  const handleModalSave = async (data: Omit<Project, "id">) => {
+    const body = mapToApi(data);
     if (modalMode === "create") {
-      const newId = projects.length > 0 ? Math.max(...projects.map((p) => p.id)) + 1 : 1;
-      setProjects((prev) => [...prev, { id: newId, ...data }]);
+      const { data: res } = await api.post('/proyectos', body);
+      setProjects((prev) => [mapFromApi(res.data as ApiProyecto), ...prev]);
     } else if (editingId !== null) {
-      setProjects((prev) =>
-        prev.map((p) => (p.id === editingId ? { ...p, ...data } : p))
-      );
+      const { data: res } = await api.put(`/proyectos/${editingId}`, body);
+      const updated = mapFromApi(res.data as ApiProyecto);
+      setProjects((prev) => prev.map((p) => (p.id === editingId ? updated : p)));
     }
     setModalOpen(false);
   };
@@ -860,8 +860,15 @@ export default function AdminPanel() {
     URL.revokeObjectURL(url);
   };
 
-  const handleDelete = (id: number) => {
-    setProjects((prev) => prev.filter((p) => p.id !== id));
+  const handleDelete = async (id: number) => {
+    if (!window.confirm("¿Eliminar este proyecto? Esta acción no se puede deshacer.")) return;
+    setProjectsError(null);
+    try {
+      await api.delete(`/proyectos/${id}`);
+      setProjects((prev) => prev.filter((p) => p.id !== id));
+    } catch (err: any) {
+      setProjectsError(err?.response?.data?.message ?? "No se pudo eliminar el proyecto.");
+    }
   };
 
   const tabs: { id: TabId; label: string }[] = [
@@ -1164,6 +1171,12 @@ export default function AdminPanel() {
                       </button>
                     </div>
 
+                    {projectsError && (
+                      <div className="mx-6 mt-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-[13px] text-red-700">
+                        {projectsError}
+                      </div>
+                    )}
+
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[900px]">
                         <thead>
@@ -1180,7 +1193,11 @@ export default function AdminPanel() {
                         </thead>
                         <tbody>
                           {projects.map((project) => {
-                            const status = STATUS_STYLES[project.estado];
+                            const status = STATUS_STYLES[project.estado] ?? {
+                              bg: "bg-gray-100",
+                              text: "text-gray-700",
+                              label: project.estado,
+                            };
                             return (
                               <tr
                                 key={project.id}
@@ -1197,7 +1214,7 @@ export default function AdminPanel() {
                                 </td>
                                 <td className="px-6 py-[20px] whitespace-nowrap">
                                   <span className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-[12px] font-medium">
-                                    {project.tipo}
+                                    {TIPO_LABELS[project.tipo] ?? project.tipo}
                                   </span>
                                 </td>
                                 <td className="px-6 py-[20px]">
@@ -1230,7 +1247,14 @@ export default function AdminPanel() {
                               </tr>
                             );
                           })}
-                          {projects.length === 0 && (
+                          {projectsLoading && (
+                            <tr>
+                              <td colSpan={8} className="px-6 py-12 text-center text-sm text-[#45556C]">
+                                Cargando proyectos...
+                              </td>
+                            </tr>
+                          )}
+                          {!projectsLoading && projects.length === 0 && (
                             <tr>
                               <td colSpan={8} className="px-6 py-12 text-center text-sm text-[#45556C]">
                                 No hay proyectos disponibles.

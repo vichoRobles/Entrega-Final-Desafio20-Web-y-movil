@@ -1,5 +1,8 @@
 import { useState } from "react";
 import { IonContent, IonPage, IonRouterLink } from '@ionic/react';
+import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../utils/AuthContext';
+import api from '../api';
 
 const REGIONES_CHILE = [
   "Región de Arica y Parinacota",
@@ -47,6 +50,9 @@ const COMUNAS: Record<string, string[]> = {
 };
 
 export default function Index() {
+  const navigate = useNavigate();
+  const { setSession } = useAuth();
+
   const [formData, setFormData] = useState({
     nombreCompleto: "",
     rut: "",
@@ -57,6 +63,9 @@ export default function Index() {
     confirmarContrasena: "",
     aceptaTerminos: false,
   });
+
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   const comunasDisponibles = formData.region ? (COMUNAS[formData.region] ?? []) : [];
 
@@ -73,21 +82,65 @@ export default function Index() {
     }
   }
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // Handle registration logic here
+    setError(null);
+
+    // Validaciones de cliente antes de llamar al backend.
+    if (formData.contrasena.length < 6) {
+      setError("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+    if (formData.contrasena !== formData.confirmarContrasena) {
+      setError("Las contraseñas no coinciden.");
+      return;
+    }
+    if (!formData.aceptaTerminos) {
+      setError("Debes aceptar los términos y condiciones.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // POST /api/auth/register. El backend asigna el rol 'user' por defecto
+      // y devuelve { success, data: { id, rut, nombre_completo, correo, rol }, token }.
+      const { data } = await api.post('/auth/register', {
+        rut: formData.rut.trim(),
+        nombre_completo: formData.nombreCompleto.trim(),
+        correo: formData.correo.trim(),
+        region: formData.region,
+        comuna: formData.comuna,
+        contrasena: formData.contrasena,
+      });
+
+      // Inicia sesión automáticamente con la sesión recién creada.
+      setSession(data.data, data.token);
+      navigate(data.data.rol === 'admin' ? '/admin' : '/dashboard', { replace: true });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      const apiErrors = err?.response?.data?.errors;
+      if (apiErrors?.length) {
+        setError(apiErrors[0].msg);
+      } else if (status === 400) {
+        setError(err?.response?.data?.message ?? "Ya existe un usuario con ese correo o RUT.");
+      } else {
+        setError(err?.response?.data?.message ?? "No se pudo conectar con el servidor.");
+      }
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
     <IonPage>
       <IonContent fullscreen className="font-sans">
         <div className="min-h-screen w-full flex items-center justify-center bg-[#F0F5F9] py-10 px-4 relative">
-          
+
           {/* Botón Volver (Esquina superior izquierda) */}
           <div className="absolute top-6 left-6">
-            <IonRouterLink 
-              routerLink="/login" 
-              routerDirection="back" 
+            <IonRouterLink
+              routerLink="/login"
+              routerDirection="back"
               className="flex flex-col items-center gap-0.5 text-[#0A58CA] hover:text-[#084298] transition-colors"
             >
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -99,7 +152,7 @@ export default function Index() {
 
           {/* Tarjeta del Formulario */}
           <div className="w-full max-w-[440px] bg-white rounded-xl shadow-lg p-8 flex flex-col gap-6">
-            
+
             {/* Título */}
             <h1 className="text-center text-[28px] font-medium text-[#0A58CA] m-0 mb-2">
               Registro de Usuario
@@ -107,7 +160,7 @@ export default function Index() {
 
             {/* Formulario */}
             <form onSubmit={handleSubmit} className="flex flex-col gap-3.5">
-              
+
               {/* Nombre completo */}
               <input
                 type="text"
@@ -225,12 +278,20 @@ export default function Index() {
                 </label>
               </div>
 
+              {/* Mensaje de error */}
+              {error && (
+                <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-[13px] text-red-700">
+                  {error}
+                </div>
+              )}
+
               {/* Botón Registrarse */}
               <button
                 type="submit"
-                className="w-full h-[46px] rounded-md bg-[#0A58CA] text-white text-[16px] font-medium shadow-sm hover:bg-[#084298] transition-colors mt-2"
+                disabled={loading}
+                className="w-full h-[46px] rounded-md bg-[#0A58CA] text-white text-[16px] font-medium shadow-sm hover:bg-[#084298] transition-colors mt-2 disabled:opacity-60 disabled:cursor-not-allowed"
               >
-                Registrarse
+                {loading ? "Creando cuenta..." : "Registrarse"}
               </button>
             </form>
           </div>

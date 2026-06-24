@@ -55,14 +55,15 @@ export const getProyectoById = async (req: Request, res: Response): Promise<void
  */
 export const createProyecto = async (req: Request, res: Response) => {
   try {
-    const { nombre, tipo, descripcion, lat, lng, fecha_inicio, fecha_fin, presupuesto, ubicacion_texto } = req.body;
-    
+    const { nombre, tipo, descripcion, estado, lat, lng, fecha_inicio, fecha_fin, presupuesto, ubicacion_texto } = req.body;
+
     const query = `
-      INSERT INTO proyectos (nombre, tipo, descripcion, lat, lng, fecha_inicio, fecha_fin, presupuesto, ubicacion_texto)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO proyectos (nombre, tipo, descripcion, estado, lat, lng, fecha_inicio, fecha_fin, presupuesto, ubicacion_texto)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       RETURNING *;
     `;
-    const values = [nombre, tipo, descripcion, lat, lng, fecha_inicio, fecha_fin, presupuesto, ubicacion_texto];
+    // Si no llega 'estado', usamos el valor por defecto del esquema ('Planificado').
+    const values = [nombre, tipo, descripcion, estado || 'Planificado', lat, lng, fecha_inicio || null, fecha_fin || null, presupuesto ?? 0, ubicacion_texto || null];
     
     const result = await pool.query(query, values);
     
@@ -84,18 +85,40 @@ export const createProyecto = async (req: Request, res: Response) => {
 export const updateProyecto = async (req: Request, res: Response): Promise<void> => {
   try {
     const { id } = req.params;
-    const { nombre, estado, presupuesto } = req.body; 
+    const { nombre, tipo, descripcion, estado, lat, lng, fecha_inicio, fecha_fin, presupuesto, ubicacion_texto } = req.body;
 
+    // Usamos COALESCE para que solo se actualicen los campos efectivamente enviados.
     const query = `
       UPDATE proyectos 
       SET nombre = COALESCE($1, nombre), 
-          estado = COALESCE($2, estado), 
-          presupuesto = COALESCE($3, presupuesto)
-      WHERE id = $4
+          tipo = COALESCE($2, tipo), 
+          descripcion = COALESCE($3, descripcion), 
+          estado = COALESCE($4, estado), 
+          lat = COALESCE($5, lat), 
+          lng = COALESCE($6, lng), 
+          fecha_inicio = COALESCE($7, fecha_inicio), 
+          fecha_fin = COALESCE($8, fecha_fin), 
+          presupuesto = COALESCE($9, presupuesto), 
+          ubicacion_texto = COALESCE($10, ubicacion_texto)
+      WHERE id = $11
       RETURNING *;
     `;
-    
-    const result = await pool.query(query, [nombre, estado, presupuesto, id]);
+
+    const values = [
+      nombre ?? null,
+      tipo ?? null,
+      descripcion ?? null,
+      estado ?? null,
+      lat ?? null,
+      lng ?? null,
+      fecha_inicio ?? null,
+      fecha_fin ?? null,
+      presupuesto ?? null,
+      ubicacion_texto ?? null,
+      id,
+    ];
+
+    const result = await pool.query(query, values);
 
     if (result.rows.length === 0) {
       res.status(404).json({ success: false, message: 'Proyecto no encontrado para actualizar' });

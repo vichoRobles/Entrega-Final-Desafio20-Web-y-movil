@@ -1,44 +1,69 @@
 import { IonContent, IonPage, IonRouterLink } from '@ionic/react';
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useNavigate } from 'react-router-dom';
-import { useAuth, type UserRole } from '../utils/AuthContext';
+import { useAuth } from '../utils/AuthContext';
+import api from '../api';
 
 export default function Index() {
   const [showPassword, setShowPassword] = useState(false);
+  const [correo, setCorreo] = useState("");
+  const [contrasena, setContrasena] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
-  // Rol por defecto asignado a 'user'
-  const [selectedRole, setSelectedRole] = useState<UserRole>('user');
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { setSession } = useAuth();
 
-  // ---> LÓGICA DEL BACKEND PRUEBA (Mantenida pero oculta visualmente) <---
-  const [mensajeBackend, setMensajeBackend] = useState<string>("Cargando conexión...");
+  const handleLogin = async () => {
+    setError(null);
 
-  useEffect(() => {
-    fetch('http://localhost:3000/api/estado')
-      .then(respuesta => respuesta.json())
-      .then(datos => setMensajeBackend(datos.mensaje))
-      .catch(error => setMensajeBackend("Backend desconectado 🔴"));
-  }, []);
-  // --------------------------------------
+    if (!correo.trim() || !contrasena) {
+      setError("Ingresa tu correo y contraseña.");
+      return;
+    }
 
-  const handleLogin = (role: UserRole = 'user') => {
-    // Si se hace clic en el botón normal, el rol es 'user'. 
-    // Si se hace clic en el botón de admin, el rol será 'admin'.
-    login(role);
-    navigate(role === 'admin' ? '/admin' : '/dashboard', { replace: true });
+    setLoading(true);
+    try {
+      // POST /api/auth/login -> { success, data: { id, nombre_completo, correo, rol }, token }
+      const { data } = await api.post('/auth/login', {
+        correo: correo.trim(),
+        contrasena,
+      });
+
+      setSession(data.data, data.token);
+
+      // El destino depende del rol REAL que devuelve el backend, no de un botón.
+      navigate(data.data.rol === 'admin' ? '/admin' : '/dashboard', { replace: true });
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401) {
+        setError("Credenciales inválidas. Revisa tu correo y contraseña.");
+      } else if (status === 400) {
+        const apiErrors = err?.response?.data?.errors;
+        setError(apiErrors?.[0]?.msg ?? "Debes ingresar un correo válido.");
+      } else {
+        setError(err?.response?.data?.message ?? "No se pudo conectar con el servidor.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    handleLogin();
   };
 
   return (
     <IonPage>
       <IonContent fullscreen>
         <div className="min-h-screen flex flex-col items-center justify-center px-4 py-8 bg-[#F0F5F9] font-sans">
-          
+
           <div className="w-full max-w-[400px] flex flex-col gap-6">
-            
+
             {/* Card Principal */}
             <div className="w-full rounded-2xl bg-white shadow-sm border border-gray-100 p-8 pb-10">
-              
+
               {/* Header */}
               <div className="flex flex-col items-center gap-2 mb-8">
                 <h1 className="text-[28px] font-medium leading-9 text-center text-[#0A58CA] m-0">
@@ -50,12 +75,12 @@ export default function Index() {
               </div>
 
               {/* Form */}
-              <div className="flex flex-col gap-5">
-                
-                {/* Email / RUT field */}
+              <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+
+                {/* Email field */}
                 <div className="flex flex-col gap-2">
                   <label className="text-[13px] font-medium text-[#495057] leading-6">
-                    Correo electrónico o RUT
+                    Correo electrónico
                   </label>
                   <div className="relative">
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none">
@@ -65,8 +90,11 @@ export default function Index() {
                       </svg>
                     </span>
                     <input
-                      type="text"
-                      placeholder="correo@ejemplo.com o 12.345.678-9"
+                      type="email"
+                      autoComplete="email"
+                      value={correo}
+                      onChange={(e) => setCorreo(e.target.value)}
+                      placeholder="correo@ejemplo.com"
                       className="w-full h-[46px] pl-10 pr-4 rounded-md border border-[#CED4DA] bg-[#F8FAFC] text-sm font-normal text-[#212529] placeholder-[#ADB5BD] outline-none focus:border-[#0A58CA] focus:ring-1 focus:ring-[#0A58CA] transition-all"
                     />
                   </div>
@@ -86,6 +114,9 @@ export default function Index() {
                     </span>
                     <input
                       type={showPassword ? "text" : "password"}
+                      autoComplete="current-password"
+                      value={contrasena}
+                      onChange={(e) => setContrasena(e.target.value)}
                       placeholder="••••••••"
                       className="w-full h-[46px] pl-10 pr-12 rounded-md border border-[#CED4DA] bg-[#FFFAF0] text-sm font-normal text-[#212529] placeholder-[#ADB5BD] outline-none focus:border-[#0A58CA] focus:ring-1 focus:ring-[#0A58CA] transition-all"
                     />
@@ -110,15 +141,22 @@ export default function Index() {
                   </a>
                 </div>
 
-                {/* Submit button (Usuario Normal) */}
+                {/* Mensaje de error */}
+                {error && (
+                  <div className="rounded-md bg-red-50 border border-red-200 px-3 py-2 text-[13px] text-red-700">
+                    {error}
+                  </div>
+                )}
+
+                {/* Submit button */}
                 <button
-                  type="button"
-                  onClick={() => handleLogin('user')}
-                  className="w-full h-[46px] rounded-md text-[15px] font-medium text-white leading-6 bg-[#0A58CA] hover:bg-[#084298] transition-colors"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full h-[46px] rounded-md text-[15px] font-medium text-white leading-6 bg-[#0A58CA] hover:bg-[#084298] transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Iniciar sesión
+                  {loading ? "Ingresando..." : "Iniciar sesión"}
                 </button>
-              </div>
+              </form>
 
               {/* Divider */}
               <div className="relative flex items-center my-6">
@@ -141,21 +179,6 @@ export default function Index() {
                 </IonRouterLink>
               </div>
             </div>
-
-            {/* --- NUEVO: Botón Ingresar como Admin (Fuera de la tarjeta principal) --- */}
-            <div className="flex justify-center mt-2">
-              <button
-                type="button"
-                onClick={() => handleLogin('admin')}
-                className="flex items-center gap-2 text-[14px] font-medium text-[#6C757D] hover:text-[#0A58CA] transition-colors px-4 py-2 rounded-lg hover:bg-white/50"
-              >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-                </svg>
-                Ingresar como Administrador
-              </button>
-            </div>
-            {/* ---------------------------------------------------------------------- */}
 
           </div>
         </div>
