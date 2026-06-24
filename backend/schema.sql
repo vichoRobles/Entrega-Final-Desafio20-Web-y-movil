@@ -58,3 +58,7 @@ INSERT INTO proyectos (nombre, tipo, descripcion, estado, lat, lng) VALUES
   ('Residencial Las Palmas',   'residencial',     'Conjunto habitacional de 120 departamentos',    'En Progreso', -33.636000, -71.628000),
   ('Puente Vial Sur',          'infraestructura', 'Ampliación y modernización del puente sur',     'Planificado', -33.650971, -71.623289),
   ('Plaza Cívica Central',     'público',         'Renovación de espacios públicos y jardines',    'En Progreso', -33.653558, -71.612585);
+
+INSERT INTO usuarios (rut, nombre_completo, correo, region, comuna, contrasena, rol) VALUES
+  ('11.111.111-1', 'Admin Municipal', 'admin@municipalidad.cl', 'Región de Valparaíso', 'Quilpué', '$2b$10$kPNyce/EQ9Q0.LW83DAYHOf1aAjZbeMSc7S14/juJ.TtLz4spYgiG', 'admin'),
+  ('22.222.222-2', 'Usuario Ciudadano', 'usuario@email.com', 'Región de Valparaíso', 'Viña del Mar', '$2b$10$BSl7xd8Z1yDrp30W9qwez.Y35qHEWnNDy51QGkLi7rK3rI0A/V3O6', 'user');
