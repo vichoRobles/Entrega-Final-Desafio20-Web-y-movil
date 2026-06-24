@@ -39,7 +39,7 @@ function mapRawProject(raw: ProjectRaw): Project {
   };
 }
 
-const API_BASE = "http://localhost:3000/api/proyectos";
+const API_BASE = "http://54.91.198.53:3000/api/proyectos";
 
 function createRedMarkerIcon() {
   return L.divIcon({
