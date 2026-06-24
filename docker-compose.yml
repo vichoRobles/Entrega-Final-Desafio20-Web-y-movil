@@ -6,12 +6,12 @@ services:
     image: postgres:15-alpine
     container_name: postgres_db
     environment:
-      # Change these to match the credentials you expect in your backend .env
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: municipality_db
-      POSTGRES_DB: municipalitypass
+      POSTGRES_PASSWORD: municipalitypass
+      POSTGRES_DB: municipality_db
+      PGPORT: 5433 # Forces PostgreSQL to change its internal port
     ports:
-      - "5433:5433"
+      - "5433:5433" # Windows Host (5433) | Inside Docker (5433)
     volumes:
       - pgdata:/var/lib/postgresql/data
       # This automatically runs your schema.sql to set up the tables on the first run!
