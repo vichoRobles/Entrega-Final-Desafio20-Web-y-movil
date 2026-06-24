@@ -16,7 +16,7 @@ import {
   IonRouterLink
 } from '@ionic/react';
 
-type TabId = "graficos" | "tabla" | "proyectos";
+type TabId = "graficos" | "opiniones" | "proyectos";
 
 type TipoProyecto =
   | "Infraestructura"
@@ -45,13 +45,19 @@ interface Project {
   responsable_id: number | null;
 }
 
-interface AnalysisRow {
+type TipoEmocion = "Alegría" | "Preocupación" | "Enojo";
+type EstadoOpinion = "Recibida" | "En revisión" | "Resuelta";
+
+interface Opinion {
   id: number;
-  fecha: string;
-  sentimiento: "Alegría" | "Preocupación" | "Enojo";
-  confianza: string;
-  texto: string;
-  palabrasClave: string[];
+  usuario_id: number;
+  proyecto_id: number | null;
+  emocion: TipoEmocion;
+  descripcion: string;
+  foto_url: string | null;
+  estado: EstadoOpinion;
+  categoria: string;
+  fecha_registro: string;
 }
 
 const STATUS_STYLES: Record<EstadoProyecto, { bg: string; text: string; label: string }> = {
@@ -105,53 +111,74 @@ const PROJECTS: Project[] = [
   },
 ];
 
-const ANALYSIS_ROWS: AnalysisRow[] = [
+const OPINIONES_INICIALES: Opinion[] = [
   {
     id: 1,
-    fecha: "2026-05-06",
-    sentimiento: "Alegría",
-    confianza: "92%",
-    texto: "Excelente servicio, muy profesional y rápido",
-    palabrasClave: ["excelente", "profesional", "rápido"],
+    usuario_id: 12,
+    proyecto_id: 1,
+    emocion: "Alegría",
+    descripcion: "La repavimentación de la avenida ha mejorado mucho el tránsito en el sector.",
+    foto_url: null,
+    estado: "Recibida",
+    categoria: "Infraestructura",
+    fecha_registro: "2026-06-01T10:23:00",
   },
   {
     id: 2,
-    fecha: "2026-05-06",
-    sentimiento: "Alegría",
-    confianza: "88%",
-    texto: "La calidad del producto superó mis expectativas",
-    palabrasClave: ["calidad", "producto"],
+    usuario_id: 7,
+    proyecto_id: 1,
+    emocion: "Preocupación",
+    descripcion: "Las obras generan mucho ruido en horarios nocturnos, afecta el descanso vecinal.",
+    foto_url: null,
+    estado: "En revisión",
+    categoria: "Ruidos y Molestias",
+    fecha_registro: "2026-06-03T08:45:00",
   },
   {
     id: 3,
-    fecha: "2026-05-05",
-    sentimiento: "Preocupación",
-    confianza: "65%",
-    texto: "El servicio es aceptable, nada excepcional",
-    palabrasClave: ["servicio", "aceptable"],
+    usuario_id: 21,
+    proyecto_id: 2,
+    emocion: "Alegría",
+    descripcion: "La nueva plaza quedó excelente, los niños del barrio ya la están usando.",
+    foto_url: null,
+    estado: "Resuelta",
+    categoria: "Espacios Públicos",
+    fecha_registro: "2026-06-05T14:10:00",
   },
   {
     id: 4,
-    fecha: "2026-05-05",
-    sentimiento: "Enojo",
-    confianza: "78%",
-    texto: "La entrega tardó más de lo esperado",
-    palabrasClave: ["entrega", "tardó"],
+    usuario_id: 5,
+    proyecto_id: 3,
+    emocion: "Enojo",
+    descripcion: "El consultorio sigue sin suficiente personal, la ampliación no sirve si no hay médicos.",
+    foto_url: null,
+    estado: "Recibida",
+    categoria: "Salud",
+    fecha_registro: "2026-06-08T09:00:00",
   },
   {
     id: 5,
-    fecha: "2026-05-04",
-    sentimiento: "Alegría",
-    confianza: "95%",
-    texto: "Totalmente recomendado, atención al cliente impecable",
-    palabrasClave: ["recomendado", "atención", "impecable"],
+    usuario_id: 33,
+    proyecto_id: null,
+    emocion: "Preocupación",
+    descripcion: "Las luminarias del sector oriente llevan semanas apagadas, inseguridad en las noches.",
+    foto_url: null,
+    estado: "En revisión",
+    categoria: "Seguridad",
+    fecha_registro: "2026-06-10T19:30:00",
   },
 ];
 
-const SENTIMENT_STYLES: Record<AnalysisRow["sentimiento"], { bg: string; text: string }> = {
+const EMOTION_STYLES: Record<TipoEmocion, { bg: string; text: string }> = {
   Alegría: { bg: "bg-[#DCFCE7]", text: "text-[#15803D]" },
   Preocupación: { bg: "bg-[#FEF3C7]", text: "text-[#A16207]" },
   Enojo: { bg: "bg-[#FEE2E2]", text: "text-[#DC2626]" },
+};
+
+const ESTADO_OPINION_STYLES: Record<EstadoOpinion, { bg: string; text: string }> = {
+  Recibida: { bg: "bg-blue-50", text: "text-blue-700" },
+  "En revisión": { bg: "bg-yellow-50", text: "text-yellow-700" },
+  Resuelta: { bg: "bg-green-50", text: "text-green-700" },
 };
 
 type ChartDatum = {
@@ -763,6 +790,7 @@ function ProjectModal({
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<TabId>("graficos");
   const [projects, setProjects] = useState<Project[]>(PROJECTS);
+  const [opiniones, setOpiniones] = useState<Opinion[]>(OPINIONES_INICIALES);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(SENTIMENT_CHART_DATA[0]);
   const [chartAnimationKey, setChartAnimationKey] = useState(0);
 
@@ -817,13 +845,28 @@ export default function AdminPanel() {
     }
   }, [activeTab]);
 
+  const handleDeleteOpinion = (id: number) => {
+    setOpiniones((prev) => prev.filter((o) => o.id !== id));
+  };
+
+  const handleExportOpiniones = () => {
+    const json = JSON.stringify(opiniones, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `opiniones_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleDelete = (id: number) => {
     setProjects((prev) => prev.filter((p) => p.id !== id));
   };
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "graficos", label: "Gráficos y Análisis" },
-    { id: "tabla", label: "Tabla Detallada" },
+    { id: "opiniones", label: "Gestión Opiniones" },
     { id: "proyectos", label: "Gestión de Proyectos" },
   ];
 
@@ -953,36 +996,32 @@ export default function AdminPanel() {
               </IonGrid>
             )}
 
-            {/* Contenido de la Tabla */}
-            {activeTab === "tabla" && (
+            {/* Contenido de Gestión Opiniones */}
+            {activeTab === "opiniones" && (
               <div className="max-w-[1000px] mx-auto px-2">
                 <IonCard className="m-0 rounded-[14px] border border-[#E2E8F0] shadow-sm overflow-hidden">
                   <IonCardContent className="p-0">
                     <div className="flex items-center justify-between px-6 py-5 border-b border-[#E2E8F0]">
                       <h2 className="text-[20px] font-semibold leading-8 text-[#0F172B]">
-                        Análisis Detallado
+                        Gestión Opiniones
                       </h2>
-                      <button className="bg-[#0A58CA] hover:bg-[#084298] text-white flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                      <button
+                        onClick={handleExportOpiniones}
+                        className="bg-[#0A58CA] hover:bg-[#084298] text-white flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                      >
                         <ExportIcon />
                         Exportar JSON
                       </button>
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[980px]">
+                      <table className="w-full min-w-[900px]">
                         <thead>
                           <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                            {[
-                              "ID",
-                              "FECHA",
-                              "SENTIMIENTO",
-                              "CONFIANZA",
-                              "TEXTO",
-                              "PALABRAS CLAVE",
-                            ].map((column) => (
+                            {["ID", "Usuario", "Proyecto", "Emoción", "Descripción", "Categoría", "Estado", "Fecha", "Foto", "Acciones"].map((column) => (
                               <th
                                 key={column}
-                                className="px-6 py-4 text-left text-[12px] font-semibold uppercase tracking-[0.06em] leading-4 text-[#64748B] whitespace-nowrap"
+                                className="px-4 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.06em] leading-4 text-[#64748B] whitespace-nowrap"
                               >
                                 {column}
                               </th>
@@ -990,40 +1029,70 @@ export default function AdminPanel() {
                           </tr>
                         </thead>
                         <tbody>
-                          {ANALYSIS_ROWS.map((row) => {
-                            const sentiment = SENTIMENT_STYLES[row.sentimiento];
+                          {opiniones.map((op) => {
+                            const emoStyle = EMOTION_STYLES[op.emocion];
+                            const estadoStyle = ESTADO_OPINION_STYLES[op.estado];
+                            const fechaFormatted = new Date(op.fecha_registro).toLocaleDateString("es-CL", {
+                              day: "2-digit", month: "2-digit", year: "numeric"
+                            });
 
                             return (
-                              <tr key={row.id} className="border-b border-[#E2E8F0] last:border-b-0 hover:bg-gray-50 transition-colors">
-                                <td className="px-6 py-[18px] text-sm font-normal text-[#0F172B] leading-5">
-                                  {row.id}
+                              <tr key={op.id} className="border-b border-[#E2E8F0] last:border-b-0 hover:bg-gray-50 transition-colors">
+                                <td className="px-4 py-[16px] text-sm font-normal text-[#0F172B] leading-5">
+                                  #{op.id}
                                 </td>
-                                <td className="px-6 py-[18px] text-sm font-normal text-[#475569] leading-5 whitespace-nowrap">
-                                  {row.fecha}
+                                <td className="px-4 py-[16px] text-sm text-[#475569] leading-5 whitespace-nowrap">
+                                  Usuario {op.usuario_id}
                                 </td>
-                                <td className="px-6 py-[18px]">
-                                  <span className={`${sentiment.bg} ${sentiment.text} px-3 py-1 rounded-full text-[12px] font-medium whitespace-nowrap inline-block`}>
-                                    {row.sentimiento}
+                                <td className="px-4 py-[16px] text-sm text-[#475569] leading-5 whitespace-nowrap">
+                                  {op.proyecto_id !== null ? `#${op.proyecto_id}` : <span className="text-gray-400 italic">—</span>}
+                                </td>
+                                <td className="px-4 py-[16px]">
+                                  <span className={`${emoStyle.bg} ${emoStyle.text} px-3 py-1 rounded-full text-[11px] font-medium whitespace-nowrap inline-block`}>
+                                    {op.emocion}
                                   </span>
                                 </td>
-                                <td className="px-6 py-[18px] text-sm font-semibold text-[#0F172B] leading-5 whitespace-nowrap">
-                                  {row.confianza}
+                                <td className="px-4 py-[16px] text-sm font-normal text-[#475569] leading-5 min-w-[220px] max-w-[280px]">
+                                  <span className="line-clamp-2">{op.descripcion}</span>
                                 </td>
-                                <td className="px-6 py-[18px] text-sm font-normal text-[#475569] leading-5 min-w-[200px]">
-                                  {row.texto}
+                                <td className="px-4 py-[16px] whitespace-nowrap">
+                                  <span className="bg-purple-50 text-purple-700 px-2.5 py-1 rounded-full text-[11px] font-medium">
+                                    {op.categoria}
+                                  </span>
                                 </td>
-                                <td className="px-6 py-[18px]">
-                                  <div className="flex flex-wrap gap-2">
-                                    {row.palabrasClave.map((keyword) => (
-                                      <span key={keyword} className="bg-gray-100 border border-gray-200 text-[#0A58CA] px-3 py-1 rounded-full text-[12px] whitespace-nowrap">
-                                        {keyword}
-                                      </span>
-                                    ))}
-                                  </div>
+                                <td className="px-4 py-[16px]">
+                                  <span className={`${estadoStyle.bg} ${estadoStyle.text} px-2.5 py-1 rounded-full text-[11px] font-medium whitespace-nowrap inline-block`}>
+                                    {op.estado}
+                                  </span>
+                                </td>
+                                <td className="px-4 py-[16px] text-sm text-[#475569] whitespace-nowrap">
+                                  {fechaFormatted}
+                                </td>
+                                <td className="px-4 py-[16px] text-sm text-[#475569]">
+                                  {op.foto_url
+                                    ? <a href={op.foto_url} target="_blank" rel="noreferrer" className="text-[#0A58CA] underline text-xs">Ver foto</a>
+                                    : <span className="text-gray-400 italic text-xs">Sin foto</span>
+                                  }
+                                </td>
+                                <td className="px-4 py-[16px]">
+                                  <button
+                                    className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors"
+                                    title="Eliminar opinión"
+                                    onClick={() => handleDeleteOpinion(op.id)}
+                                  >
+                                    <DeleteIcon />
+                                  </button>
                                 </td>
                               </tr>
                             );
                           })}
+                          {opiniones.length === 0 && (
+                            <tr>
+                              <td colSpan={10} className="px-6 py-12 text-center text-sm text-[#45556C]">
+                                No hay opiniones registradas.
+                              </td>
+                            </tr>
+                          )}
                         </tbody>
                       </table>
                     </div>
