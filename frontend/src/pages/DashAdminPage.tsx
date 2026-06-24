@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   IonBadge,
   IonButton,
@@ -17,13 +18,31 @@ import {
 
 type TabId = "graficos" | "tabla" | "proyectos";
 
+type TipoProyecto =
+  | "Infraestructura"
+  | "Educación"
+  | "Salud"
+  | "Medioambiente"
+  | "Cultura"
+  | "Transporte"
+  | "Seguridad"
+  | "Otro";
+
+type EstadoProyecto = "Planificado" | "En Progreso" | "Completado";
+
 interface Project {
   id: number;
   nombre: string;
-  estado: "En Progreso" | "Completado" | "Planificado";
+  tipo: TipoProyecto;
+  descripcion: string;
+  estado: EstadoProyecto;
+  lat: number;
+  lng: number;
   fechaInicio: string;
   fechaFin: string;
-  responsable: string;
+  presupuesto: number;
+  ubicacionTexto: string;
+  responsable_id: number | null;
 }
 
 interface AnalysisRow {
@@ -35,38 +54,56 @@ interface AnalysisRow {
   palabrasClave: string[];
 }
 
-const PROJECTS: Project[] = [
-  {
-    id: 1,
-    nombre: "Rediseño Web Corporativa",
-    estado: "En Progreso",
-    fechaInicio: "2026-04-01",
-    fechaFin: "2026-06-30",
-    responsable: "María García",
-  },
-  {
-    id: 2,
-    nombre: "App Móvil iOS",
-    estado: "Completado",
-    fechaInicio: "2026-01-15",
-    fechaFin: "2026-04-20",
-    responsable: "Carlos Ruiz",
-  },
-  {
-    id: 3,
-    nombre: "Sistema CRM",
-    estado: "Planificado",
-    fechaInicio: "2026-06-01",
-    fechaFin: "2026-09-30",
-    responsable: "Ana Martínez",
-  },
-];
-
-const STATUS_STYLES: Record<Project["estado"], { bg: string; text: string; label: string }> = {
+const STATUS_STYLES: Record<EstadoProyecto, { bg: string; text: string; label: string }> = {
   "En Progreso": { bg: "bg-blue-100", text: "text-blue-700", label: "En Progreso" },
   Completado: { bg: "bg-green-100", text: "text-green-800", label: "Completado" },
   Planificado: { bg: "bg-yellow-100", text: "text-yellow-800", label: "Planificado" },
 };
+
+const PROJECTS: Project[] = [
+  {
+    id: 1,
+    nombre: "Repavimentación Av. Los Carrera",
+    tipo: "Infraestructura",
+    descripcion: "Repavimentación completa de la avenida principal con ciclovía integrada.",
+    estado: "En Progreso",
+    lat: -33.0472,
+    lng: -71.4427,
+    fechaInicio: "2026-04-01",
+    fechaFin: "2026-08-30",
+    presupuesto: 45000000,
+    ubicacionTexto: "Av. Los Carrera, Quilpué",
+    responsable_id: 3,
+  },
+  {
+    id: 2,
+    nombre: "Plaza Vecinal Villa Independencia",
+    tipo: "Cultura",
+    descripcion: "Construcción de nueva plaza con juegos infantiles y áreas verdes.",
+    estado: "Completado",
+    lat: -33.0521,
+    lng: -71.4318,
+    fechaInicio: "2026-01-15",
+    fechaFin: "2026-04-20",
+    presupuesto: 18000000,
+    ubicacionTexto: "Villa Independencia, Quilpué",
+    responsable_id: 5,
+  },
+  {
+    id: 3,
+    nombre: "Consultorio Módulo Norte",
+    tipo: "Salud",
+    descripcion: "Ampliación del consultorio con nuevas salas de atención primaria.",
+    estado: "Planificado",
+    lat: -33.0389,
+    lng: -71.4501,
+    fechaInicio: "2026-07-01",
+    fechaFin: "2026-12-31",
+    presupuesto: 72000000,
+    ubicacionTexto: "Sector Norte, Quilpué",
+    responsable_id: 2,
+  },
+];
 
 const ANALYSIS_ROWS: AnalysisRow[] = [
   {
@@ -452,11 +489,326 @@ function ExportIcon() {
   );
 }
 
+// ─── Modal de Proyecto (Nuevo / Editar) ──────────────────────────────────────
+
+type ModalMode = "create" | "edit";
+
+const EMPTY_FORM: Omit<Project, "id"> = {
+  nombre: "",
+  tipo: "Infraestructura",
+  descripcion: "",
+  estado: "Planificado",
+  lat: 0,
+  lng: 0,
+  fechaInicio: "",
+  fechaFin: "",
+  presupuesto: 0,
+  ubicacionTexto: "",
+  responsable_id: null,
+};
+
+function ProjectModal({
+  mode,
+  initial,
+  onClose,
+  onSave,
+}: {
+  mode: ModalMode;
+  initial: Omit<Project, "id">;
+  onClose: () => void;
+  onSave: (data: Omit<Project, "id">) => void;
+}) {
+  const [form, setForm] = useState<Omit<Project, "id">>(initial);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
+  // Close on backdrop click
+  const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === overlayRef.current) onClose();
+  };
+
+  // Close on Escape
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    onSave(form);
+  };
+
+  const inputClass =
+    "w-full rounded-lg border border-[#CBD5E1] bg-white px-3 py-2 text-sm text-[#0F172B] placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#0A58CA] focus:border-transparent transition";
+
+  return createPortal(
+    <div
+      ref={overlayRef}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+      onClick={handleBackdrop}
+    >
+      <div className="w-full max-w-lg rounded-2xl bg-white shadow-2xl border border-[#E2E8F0] mx-4"
+        style={{ animation: "modalIn 0.18s ease" }}>
+        <style>{`@keyframes modalIn { from { opacity: 0; transform: scale(0.95) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }`}</style>
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-[#E2E8F0]">
+          <h3 className="text-[18px] font-semibold text-[#0F172B]">
+            {mode === "create" ? "Nuevo Proyecto" : "Editar Proyecto"}
+          </h3>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            aria-label="Cerrar"
+          >
+            <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+              <path d="M14 4L4 14M4 4l10 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="px-6 py-5 flex flex-col gap-4 max-h-[75vh] overflow-y-auto">
+          {/* Nombre */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+              Nombre del Proyecto <span className="text-red-500">*</span>
+            </label>
+            <input
+              required
+              type="text"
+              placeholder="Ej: Repavimentación Av. Los Carrera"
+              value={form.nombre}
+              onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Tipo + Estado */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+                Tipo <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                value={form.tipo}
+                onChange={(e) => setForm({ ...form, tipo: e.target.value as TipoProyecto })}
+                className={inputClass}
+              >
+                {(["Infraestructura","Educación","Salud","Medioambiente","Cultura","Transporte","Seguridad","Otro"] as TipoProyecto[]).map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+                Estado <span className="text-red-500">*</span>
+              </label>
+              <select
+                required
+                value={form.estado}
+                onChange={(e) => setForm({ ...form, estado: e.target.value as EstadoProyecto })}
+                className={inputClass}
+              >
+                <option value="Planificado">Planificado</option>
+                <option value="En Progreso">En Progreso</option>
+                <option value="Completado">Completado</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Descripción */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+              Descripción <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              required
+              rows={3}
+              placeholder="Describe el proyecto municipal..."
+              value={form.descripcion}
+              onChange={(e) => setForm({ ...form, descripcion: e.target.value })}
+              className={`${inputClass} resize-none`}
+            />
+          </div>
+
+          {/* Ubicación texto */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+              Dirección / Sector
+            </label>
+            <input
+              type="text"
+              placeholder="Ej: Av. Los Carrera 1200, Quilpué"
+              value={form.ubicacionTexto}
+              onChange={(e) => setForm({ ...form, ubicacionTexto: e.target.value })}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Lat / Lng */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+                Latitud <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                type="number"
+                step="0.000001"
+                placeholder="-33.047200"
+                value={form.lat || ""}
+                onChange={(e) => setForm({ ...form, lat: parseFloat(e.target.value) || 0 })}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+                Longitud <span className="text-red-500">*</span>
+              </label>
+              <input
+                required
+                type="number"
+                step="0.000001"
+                placeholder="-71.442700"
+                value={form.lng || ""}
+                onChange={(e) => setForm({ ...form, lng: parseFloat(e.target.value) || 0 })}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          {/* Fechas */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+                Fecha Inicio
+              </label>
+              <input
+                type="date"
+                value={form.fechaInicio}
+                onChange={(e) => setForm({ ...form, fechaInicio: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+                Fecha Fin
+              </label>
+              <input
+                type="date"
+                value={form.fechaFin}
+                onChange={(e) => setForm({ ...form, fechaFin: e.target.value })}
+                className={inputClass}
+              />
+            </div>
+          </div>
+
+          {/* Presupuesto */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+              Presupuesto (CLP)
+            </label>
+            <input
+              type="number"
+              min="0"
+              step="1000"
+              placeholder="0"
+              value={form.presupuesto || ""}
+              onChange={(e) => setForm({ ...form, presupuesto: parseInt(e.target.value) || 0 })}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Responsable ID */}
+          <div className="flex flex-col gap-1.5">
+            <label className="text-xs font-semibold text-[#64748B] uppercase tracking-wide">
+              ID Responsable
+            </label>
+            <input
+              type="number"
+              min="1"
+              placeholder="ID del usuario responsable"
+              value={form.responsable_id ?? ""}
+              onChange={(e) => setForm({ ...form, responsable_id: e.target.value ? parseInt(e.target.value) : null })}
+              className={inputClass}
+            />
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg text-sm font-medium text-[#64748B] bg-gray-100 hover:bg-gray-200 transition-colors"
+            >
+              Cancelar
+            </button>
+            <button
+              type="submit"
+              className="px-5 py-2 rounded-lg text-sm font-medium text-white bg-[#0A58CA] hover:bg-[#084298] transition-colors"
+            >
+              {mode === "create" ? "Crear Proyecto" : "Guardar Cambios"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<TabId>("graficos");
   const [projects, setProjects] = useState<Project[]>(PROJECTS);
   const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(SENTIMENT_CHART_DATA[0]);
   const [chartAnimationKey, setChartAnimationKey] = useState(0);
+
+  // Modal state
+  const [modalOpen, setModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>("create");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [modalInitial, setModalInitial] = useState<Omit<Project, "id">>(EMPTY_FORM);
+
+  const openCreate = () => {
+    setModalMode("create");
+    setEditingId(null);
+    setModalInitial(EMPTY_FORM);
+    setModalOpen(true);
+  };
+
+  const openEdit = (project: Project) => {
+    setModalMode("edit");
+    setEditingId(project.id);
+    setModalInitial({
+      nombre: project.nombre,
+      tipo: project.tipo,
+      descripcion: project.descripcion,
+      estado: project.estado,
+      lat: project.lat,
+      lng: project.lng,
+      fechaInicio: project.fechaInicio,
+      fechaFin: project.fechaFin,
+      presupuesto: project.presupuesto,
+      ubicacionTexto: project.ubicacionTexto,
+      responsable_id: project.responsable_id,
+    });
+    setModalOpen(true);
+  };
+
+  const handleModalSave = (data: Omit<Project, "id">) => {
+    if (modalMode === "create") {
+      const newId = projects.length > 0 ? Math.max(...projects.map((p) => p.id)) + 1 : 1;
+      setProjects((prev) => [...prev, { id: newId, ...data }]);
+    } else if (editingId !== null) {
+      setProjects((prev) =>
+        prev.map((p) => (p.id === editingId ? { ...p, ...data } : p))
+      );
+    }
+    setModalOpen(false);
+  };
 
   useEffect(() => {
     if (activeTab === "graficos") {
@@ -692,7 +1044,7 @@ export default function AdminPanel() {
                           Gestión de Proyectos
                         </h2>
                       </div>
-                      <button className="bg-[#0A58CA] hover:bg-[#084298] text-white flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                      <button onClick={openCreate} className="bg-[#0A58CA] hover:bg-[#084298] text-white flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors">
                         <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                           <path d="M3.33337 8H12.6667" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                           <path d="M8 3.33334V12.6667" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -702,10 +1054,10 @@ export default function AdminPanel() {
                     </div>
 
                     <div className="overflow-x-auto">
-                      <table className="w-full min-w-[700px]">
+                      <table className="w-full min-w-[900px]">
                         <thead>
                           <tr className="bg-[#F8FAFC] border-b border-[#E2E8F0]">
-                            {["ID", "Proyecto", "Estado", "Fecha Inicio", "Fecha Fin", "Responsable", "Acciones"].map((col) => (
+                            {["ID", "Proyecto", "Tipo", "Estado", "Ubicación", "Coords", "Presupuesto", "Acciones"].map((col) => (
                               <th
                                 key={col}
                                 className="px-6 py-4 text-left text-xs font-semibold text-[#64748B] uppercase tracking-[0.06em] leading-4"
@@ -726,26 +1078,37 @@ export default function AdminPanel() {
                                 <td className="px-6 py-[20px] text-sm font-normal text-[#0F172B] leading-5">
                                   {project.id}
                                 </td>
-                                <td className="px-6 py-[20px] text-sm font-medium text-[#0F172B] leading-5 whitespace-nowrap">
-                                  {project.nombre}
+                                <td className="px-6 py-[20px] text-sm font-medium text-[#0F172B] leading-5 max-w-[180px]">
+                                  <div className="font-medium text-[#0F172B]">{project.nombre}</div>
+                                  {project.fechaInicio && (
+                                    <div className="text-xs text-[#94A3B8] mt-0.5">{project.fechaInicio} → {project.fechaFin || "—"}</div>
+                                  )}
+                                </td>
+                                <td className="px-6 py-[20px] whitespace-nowrap">
+                                  <span className="bg-purple-50 text-purple-700 px-3 py-1 rounded-full text-[12px] font-medium">
+                                    {project.tipo}
+                                  </span>
                                 </td>
                                 <td className="px-6 py-[20px]">
                                   <span className={`${status.bg} ${status.text} px-3 py-1 rounded-full text-[12px] font-medium whitespace-nowrap`}>
                                     {status.label}
                                   </span>
                                 </td>
-                                <td className="px-6 py-[20px] text-sm font-normal text-[#45556C] leading-5 whitespace-nowrap">
-                                  {project.fechaInicio}
+                                <td className="px-6 py-[20px] text-sm font-normal text-[#45556C] leading-5 max-w-[160px] truncate" title={project.ubicacionTexto}>
+                                  {project.ubicacionTexto || "—"}
                                 </td>
-                                <td className="px-6 py-[20px] text-sm font-normal text-[#45556C] leading-5 whitespace-nowrap">
-                                  {project.fechaFin}
+                                <td className="px-6 py-[20px] text-xs font-mono text-[#45556C] whitespace-nowrap">
+                                  <div>{project.lat.toFixed(4)}</div>
+                                  <div>{project.lng.toFixed(4)}</div>
                                 </td>
-                                <td className="px-6 py-[20px] text-sm font-normal text-[#45556C] leading-5 whitespace-nowrap">
-                                  {project.responsable}
+                                <td className="px-6 py-[20px] text-sm font-normal text-[#45556C] whitespace-nowrap">
+                                  {project.presupuesto > 0
+                                    ? `$${project.presupuesto.toLocaleString("es-CL")}`
+                                    : "—"}
                                 </td>
                                 <td className="px-6 py-[20px]">
                                   <div className="flex items-center gap-2">
-                                    <button className="p-1.5 text-gray-500 hover:text-[#0A58CA] hover:bg-[#E3EDFD] rounded-md transition-colors" title="Editar">
+                                    <button className="p-1.5 text-gray-500 hover:text-[#0A58CA] hover:bg-[#E3EDFD] rounded-md transition-colors" title="Editar" onClick={() => openEdit(project)}>
                                       <EditIcon />
                                     </button>
                                     <button className="p-1.5 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors" title="Eliminar" onClick={() => handleDelete(project.id)}>
@@ -758,7 +1121,7 @@ export default function AdminPanel() {
                           })}
                           {projects.length === 0 && (
                             <tr>
-                              <td colSpan={7} className="px-6 py-12 text-center text-sm text-[#45556C]">
+                              <td colSpan={8} className="px-6 py-12 text-center text-sm text-[#45556C]">
                                 No hay proyectos disponibles.
                               </td>
                             </tr>
@@ -773,6 +1136,17 @@ export default function AdminPanel() {
             
           </div>
         </div>
+
+        {/* Project Modal */}
+        {modalOpen && (
+          <ProjectModal
+            mode={modalMode}
+            initial={modalInitial}
+            onClose={() => setModalOpen(false)}
+            onSave={handleModalSave}
+          />
+        )}
+
       </IonContent>
     </IonPage>
   );
