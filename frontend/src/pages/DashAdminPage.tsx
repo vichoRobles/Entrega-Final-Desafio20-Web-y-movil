@@ -232,7 +232,7 @@ function ChartInfoCard({ info }: { info: HoverInfo | null }) {
   if (!info) {
     return (
       <div className="h-[80px] w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-center text-sm text-gray-500">
-        Pasa el cursor por un gráfico
+        
       </div>
     );
   }
@@ -791,7 +791,8 @@ export default function AdminPanel() {
   const [activeTab, setActiveTab] = useState<TabId>("graficos");
   const [projects, setProjects] = useState<Project[]>(PROJECTS);
   const [opiniones, setOpiniones] = useState<Opinion[]>(OPINIONES_INICIALES);
-  const [hoverInfo, setHoverInfo] = useState<HoverInfo | null>(SENTIMENT_CHART_DATA[0]);
+  const [barHoverInfo, setBarHoverInfo] = useState<HoverInfo | null>(null);
+  const [pieHoverInfo, setPieHoverInfo] = useState<HoverInfo | null>(null);
   const [chartAnimationKey, setChartAnimationKey] = useState(0);
 
   // Modal state
@@ -841,7 +842,6 @@ export default function AdminPanel() {
   useEffect(() => {
     if (activeTab === "graficos") {
       setChartAnimationKey((value) => value + 1);
-      setHoverInfo(SENTIMENT_CHART_DATA[0]);
     }
   }, [activeTab]);
 
@@ -957,14 +957,35 @@ export default function AdminPanel() {
                             Distribución de Sentimientos
                           </h2>
                           <div className="w-full xl:w-auto min-w-[200px]">
-                            <ChartInfoCard info={hoverInfo} />
+                            {barHoverInfo ? (
+                              <div className="h-[80px] w-full max-w-[220px] rounded-xl border border-gray-200 bg-white px-4 py-2 flex flex-col justify-center shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: barHoverInfo.color }} />
+                                  <span className="text-[15px] font-semibold text-gray-900">{barHoverInfo.label}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[13px] text-gray-600">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs">Cantidad:</span>
+                                    <strong className="text-gray-900">{barHoverInfo.count}</strong>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-xs">Porcentaje:</span>
+                                    <strong className="text-gray-900">{barHoverInfo.percentage}%</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="h-[80px] w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-center text-sm text-gray-500">
+                                
+                              </div>
+                            )}
                           </div>
                         </div>
 
                         <SentimentBars
                           key={`bars-${chartAnimationKey}`}
-                          onHover={setHoverInfo}
-                          onClear={() => setHoverInfo(SENTIMENT_CHART_DATA[0])}
+                          onHover={setBarHoverInfo}
+                          onClear={() => setBarHoverInfo(null)}
                         />
                       </IonCardContent>
                     </IonCard>
@@ -979,14 +1000,35 @@ export default function AdminPanel() {
                             Proporción de Sentimientos
                           </h2>
                           <div className="w-full xl:w-auto min-w-[200px]">
-                            <ChartInfoCard info={hoverInfo} />
+                            {pieHoverInfo ? (
+                              <div className="h-[80px] w-full max-w-[220px] rounded-xl border border-gray-200 bg-white px-4 py-2 flex flex-col justify-center shadow-sm">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <span className="h-3 w-3 rounded-full" style={{ backgroundColor: pieHoverInfo.color }} />
+                                  <span className="text-[15px] font-semibold text-gray-900">{pieHoverInfo.label}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-[13px] text-gray-600">
+                                  <div className="flex flex-col">
+                                    <span className="text-xs">Cantidad:</span>
+                                    <strong className="text-gray-900">{pieHoverInfo.count}</strong>
+                                  </div>
+                                  <div className="flex flex-col">
+                                    <span className="text-xs">Porcentaje:</span>
+                                    <strong className="text-gray-900">{pieHoverInfo.percentage}%</strong>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="h-[80px] w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-3 flex items-center justify-center text-sm text-gray-500">
+                                
+                              </div>
+                            )}
                           </div>
                         </div>
 
                         <SentimentPie
                           key={`pie-${chartAnimationKey}`}
-                          onHover={setHoverInfo}
-                          onClear={() => setHoverInfo(SENTIMENT_CHART_DATA[0])}
+                          onHover={setPieHoverInfo}
+                          onClear={() => setPieHoverInfo(null)}
                         />
                       </IonCardContent>
                     </IonCard>
