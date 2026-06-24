@@ -6,61 +6,40 @@ import "leaflet/dist/leaflet.css";
 const PROJECT_TYPES = ["residencial", "comercial", "infraestructura", "público"] as const;
 type ProjectType = (typeof PROJECT_TYPES)[number];
 
+// Matches the DB schema (columns: id, nombre, tipo, descripcion, estado, lat, lng)
+interface ProjectRaw {
+  id: number;
+  nombre: string;
+  tipo: ProjectType;
+  descripcion: string;
+  estado: string;
+  lat: number;
+  lng: number;
+}
+
 interface Project {
   id: number;
   name: string;
   type: ProjectType;
   description: string;
-  status: "active" | "pending" | "completed";
+  status: string;
   lat: number;
   lng: number;
 }
 
-// Coordenadas
-const PROJECTS: Project[] = [
-  {
-    id: 1,
-    name: "Parque empresarial norte",
-    type: "comercial",
-    description: "Oficinas y espacios de coworking",
-    status: "active",
-    lat: -33.628, 
-    lng: -71.622,
-  },
-  {
-    id: 2,
-    name: "Residencial Las Palmas",
-    type: "residencial",
-    description: "Conjunto habitacional de 120 departamentos",
-    status: "active",
-    lat: -33.636,
-    lng: -71.628,
-  },
-  {
-    id: 3,
-    name: "Puente Vial Sur",
-    type: "infraestructura",
-    description: "Ampliación y modernización del puente sur",
-    status: "pending",
-    lat: -33.650971, 
-    lng: -71.623289,
-  },
-  {
-    id: 4,
-    name: "Plaza Cívica Central",
-    type: "público",
-    description: "Renovación de espacios públicos y jardines",
-    status: "active",
-    lat: -33.653558, 
-    lng: -71.612585,
-  },
-];
+function mapRawProject(raw: ProjectRaw): Project {
+  return {
+    id: raw.id,
+    name: raw.nombre,
+    type: raw.tipo,
+    description: raw.descripcion,
+    status: raw.estado,
+    lat: Number(raw.lat),
+    lng: Number(raw.lng),
+  };
+}
 
-const STATUS_LABELS: Record<string, string> = {
-  active: "Activo",
-  pending: "Pendiente",
-  completed: "Completado",
-};
+const API_BASE = "http://localhost:3000";
 
 function createRedMarkerIcon() {
   return L.divIcon({
@@ -91,6 +70,30 @@ export default function Index() {
     new Set(PROJECT_TYPES)
   );
   const [zoom, setZoom] = useState(14);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // Fetch projects from the backend on mount
+  useEffect(() => {
+    const fetchProjects = async () => {
+      try {
+        setLoadingProjects(true);
+        setFetchError(null);
+        const res = await fetch(`${API_BASE}/`);
+        if (!res.ok) throw new Error(`Error ${res.status}: ${res.statusText}`);
+        const json = await res.json();
+        const mapped: Project[] = (json.data as ProjectRaw[]).map(mapRawProject);
+        setProjects(mapped);
+      } catch (err) {
+        setFetchError(err instanceof Error ? err.message : "Error al cargar proyectos");
+      } finally {
+        setLoadingProjects(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -120,19 +123,19 @@ export default function Index() {
 
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || loadingProjects) return;
 
     markersRef.current.forEach((m) => m.remove());
     markersRef.current = [];
 
     const icon = createRedMarkerIcon();
 
-    PROJECTS.filter((p) => selectedTypes.has(p.type)).forEach((project) => {
+    projects.filter((p) => selectedTypes.has(p.type)).forEach((project) => {
       const marker = L.marker([project.lat, project.lng], { icon }).addTo(map);
       marker.on("click", () => setSelectedProject(project));
       markersRef.current.push(marker);
     });
-  }, [selectedTypes]);
+  }, [selectedTypes, projects, loadingProjects]);
 
   const toggleType = (type: ProjectType) => {
     setSelectedTypes((prev) => {
@@ -159,6 +162,30 @@ export default function Index() {
           
           {/* Contenedor del Mapa */}
           <div ref={mapContainerRef} className="absolute inset-0 z-0" />
+
+          {/* Overlay de carga / error */}
+          {(loadingProjects || fetchError) && (
+            <div className="absolute inset-0 z-[999] flex items-center justify-center pointer-events-none">
+              <div className="bg-white/90 backdrop-blur-sm rounded-xl px-5 py-3 shadow-md flex items-center gap-3">
+                {loadingProjects && !fetchError && (
+                  <>
+                    <svg className="animate-spin" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#0054E9" strokeWidth="2.5" strokeLinecap="round">
+                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83" />
+                    </svg>
+                    <span className="text-sm text-gray-600 font-medium">Cargando proyectos…</span>
+                  </>
+                )}
+                {fetchError && (
+                  <>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#E7000B" strokeWidth="2.5" strokeLinecap="round">
+                      <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
+                    </svg>
+                    <span className="text-sm text-red-600 font-medium">{fetchError}</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Botón flotante para reabrir el menú */}
           {!isMenuOpen && (
@@ -292,7 +319,7 @@ export default function Index() {
               </p>
               <div className="flex justify-between items-center mt-2">
                 <span className="bg-[#188038] text-white text-[12px] font-medium px-3 py-1 rounded-md">
-                  {STATUS_LABELS[selectedProject.status]}
+                  {selectedProject.status}
                 </span>
                 <IonRouterLink
                   routerLink="/detalles"

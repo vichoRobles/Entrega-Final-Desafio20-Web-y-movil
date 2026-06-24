@@ -52,3 +52,9 @@ CREATE TABLE opiniones (
     categoria VARCHAR(100) NOT NULL,          
     fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
+
+INSERT INTO proyectos (nombre, tipo, descripcion, estado, lat, lng) VALUES
+  ('Parque empresarial norte', 'comercial',       'Oficinas y espacios de coworking',              'En Progreso', -33.628000, -71.622000),
+  ('Residencial Las Palmas',   'residencial',     'Conjunto habitacional de 120 departamentos',    'En Progreso', -33.636000, -71.628000),
+  ('Puente Vial Sur',          'infraestructura', 'Ampliación y modernización del puente sur',     'Planificado', -33.650971, -71.623289),
+  ('Plaza Cívica Central',     'público',         'Renovación de espacios públicos y jardines',    'En Progreso', -33.653558, -71.612585);
