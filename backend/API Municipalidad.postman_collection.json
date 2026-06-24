@@ -1,0 +1,130 @@
+{
+  "info": {
+    "_postman_id": "28fcd0f3-a6c8-449f-82df-0a7e3eb310f1",
+    "name": "API Municipalidad",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_exporter_id": "55476497",
+    "_collection_link": "https://go.postman.co/collection/55476497-28fcd0f3-a6c8-449f-82df-0a7e3eb310f1?source=collection_link"
+  },
+  "item": [
+    {
+      "name": "1. Registrar Admin",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"rut\": \"11222333-4\",\r\n  \"nombre_completo\": \"Admin Municipal\",\r\n  \"correo\": \"admin@muni.cl\",\r\n  \"region\": \"Valparaíso\",\r\n  \"comuna\": \"Quilpué\",\r\n  \"contrasena\": \"admin123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/auth/register",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "auth",
+            "register"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "2. Login",
+      "request": {
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"correo\": \"admin@muni.cl\",\r\n  \"contrasena\": \"admin123\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/auth/login",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "auth",
+            "login"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "3. Crear Proyecto",
+      "request": {
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MSwicm9sIjoiYWRtaW4iLCJpYXQiOjE3ODA1NDI1NzgsImV4cCI6MTc4MzEzNDU3OH0.fiQLO8fs6ByGklh1P0rkZMDcrF1VoF1Lp8lLwUL9we0",
+              "type": "string"
+            }
+          ]
+        },
+        "method": "POST",
+        "header": [],
+        "body": {
+          "mode": "raw",
+          "raw": "{\r\n  \"nombre\": \"Mejora Plaza Central\",\r\n  \"tipo\": \"público\",\r\n  \"descripcion\": \"Instalación de nuevas luminarias y áreas verdes.\",\r\n  \"lat\": -33.045,\r\n  \"lng\": -71.442,\r\n  \"fecha_inicio\": \"2026-07-01\",\r\n  \"fecha_fin\": \"2026-12-01\",\r\n  \"presupuesto\": 50000000,\r\n  \"ubicacion_texto\": \"Plaza de Quilpué\"\r\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": {
+          "raw": "http://localhost:3000/api/proyectos",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "proyectos"
+          ]
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "4. Obtener proyectos",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "http://localhost:3000/api/proyectos",
+          "protocol": "http",
+          "host": [
+            "localhost"
+          ],
+          "port": "3000",
+          "path": [
+            "api",
+            "proyectos"
+          ]
+        }
+      },
+      "response": []
+    }
+  ]
+}
