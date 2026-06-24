@@ -31,12 +31,12 @@ Configuramos las variables del entorno
 
 ```
 PORT=3000
-DB_PORT=5432
+DB_PORT=5433
 DB_USER=postgres
-DB_PASSWORD=tu_contraseña
-DB_HOST=localhost
-DB_NAME=nombre_de_la_db
-JWT_SECRET=jwt_secret
+DB_NAME=municipality_db
+DB_PASSWORD=municipalitypass
+DB_HOST=db
+JWT_SECRET=a_very_long_random_string_for_your_tokens
 ```
 
 Corremos la aplicación, en este caso utilizamos el script 'npm run dev' debido a que permite prototipado rápido para las entregas.
